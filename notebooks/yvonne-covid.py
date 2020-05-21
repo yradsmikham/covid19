@@ -1,20 +1,15 @@
 # Databricks notebook source
-# Unmount container
-dbutils.fs.unmount("/mnt/")
-
-# COMMAND ----------
-
 # Session Configuration
 configs = {"fs.azure.account.auth.type": "OAuth",
        "fs.azure.account.oauth.provider.type": "org.apache.hadoop.fs.azurebfs.oauth2.ClientCredsTokenProvider",
-       "fs.azure.account.oauth2.client.id": "*****",
-       "fs.azure.account.oauth2.client.secret": "*****",
-       "fs.azure.account.oauth2.client.endpoint": "https://login.microsoftonline.com/*****/oauth2/token",
+       "fs.azure.account.oauth2.client.id": "<app_id>",
+       "fs.azure.account.oauth2.client.secret": "<secret>",
+       "fs.azure.account.oauth2.client.endpoint": "https://login.microsoftonline.com/<tenant_id>/oauth2/token",
        "fs.azure.createRemoteFileSystemDuringInitialization": "true"}
 
 # Mount container
 dbutils.fs.mount(
-source = "abfss://fhir@yvonnesourcedev.dfs.core.windows.net/",
+source = "abfss://<container_name>@<storage_account>.dfs.core.windows.net/",
 mount_point = "/mnt/",
 extra_configs = configs)
 
@@ -25,32 +20,42 @@ display(dbutils.fs.ls("/mnt/"))
 
 # COMMAND ----------
 
-# Explore data
+# Explore patient data
 patient_df = spark.read.json("mnt/fhir_patient_data/Patient.ndjson")
 display(patient_df)
 
 # COMMAND ----------
 
-# Additional Data Exploration
+# Explore patient conditions data
 condition_df = spark.read.json("mnt/fhir_patient_data/Condition.ndjson")
 display(condition_df)
 
 # COMMAND ----------
 
 # Transform data
-# Map conditions to patients
 
-from pyspark.sql.functions import regexp_extract, col, split
-condition_df = condition_df.withColumn('subject',condition_df['subject'].cast('string')).withColumn('code',condition_df['code'].cast('string'))
-condition_df2 = condition_df.withColumn('id', regexp_extract(col('subject'), '\/(.*)\]', 1)).withColumn('conditions', split(col('code'), ',')[1])
-condition_df2.select('id', 'conditions').show(100,truncate=False)
+# Map conditions to patients
+from pyspark.sql.functions import regexp_extract, col, split, collect_list, concat_ws, lit, concat
+
+condition_df = condition_df.withColumn('subject',condition_df['subject'].cast('string')).withColumn('code',condition_df['code'].cast('string')).withColumn('id', regexp_extract(col('subject'), '\/(.*)\]', 1)).withColumn('conditions', split(col('code'), ',')[1])
+
+# Aggregate data
+cond_grouped_df = condition_df2.groupby('id').agg(collect_list('conditions').alias("conditions"))
+
+# Merge DFs
+patient_cond_df = patient_df.join(grouped_df, on=['id'], how='left_outer').select('name', 'id', 'conditions')
+patient_cond_df.show(100)
 
 # COMMAND ----------
 
-# Merge DFs
+# Analyze and filter data based on a specific condition 
 
-patient_cond_df = patient_df.join(condition_df2, on=['id'], how='left_outer').select('name', 'id', 'conditions').show(100, truncate=False)
+positive_patients_df = condition_df.filter(condition_df.conditions.contains('Acute bronchitis (disorder)')).groupby('id').agg(collect_list('conditions').alias("conditions"))
+positive_patients_df.select('id', 'conditions').show(100, truncate=False)
 
 # COMMAND ----------
 
 # Export to Azure Data Lake 
+spark.conf.set("fs.azure.account.key.yvonnefhirdev.dfs.core.windows.net", "<access_key>")
+dbutils.fs.ls("abfss://<container>@<storage_account>.dfs.core.windows.net/")
+positive_patients_df.write.format("json").save("abfss://<container>@<storage_account>.dfs.core.windows.net/positive_patients.json")
