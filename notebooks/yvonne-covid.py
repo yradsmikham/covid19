@@ -37,14 +37,19 @@ display(condition_df)
 
 # COMMAND ----------
 
-from pyspark.sql.functions import regexp_extract, col
-condition_df2 = condition_df.withColumn('patient id', regexp_extract(col('subject'), '\/(.*)\]', 1))
-condition_df2.select('patient id', 'code').show(100,truncate=False)
+# Transform data
+# Map conditions to patients
+
+from pyspark.sql.functions import regexp_extract, col, split
+condition_df = condition_df.withColumn('subject',condition_df['subject'].cast('string')).withColumn('code',condition_df['code'].cast('string'))
+condition_df2 = condition_df.withColumn('id', regexp_extract(col('subject'), '\/(.*)\]', 1)).withColumn('conditions', split(col('code'), ',')[1])
+condition_df2.select('id', 'conditions').show(100,truncate=False)
 
 # COMMAND ----------
 
-# Transform data
-# Map conditions to patients
+# Merge DFs
+
+patient_cond_df = patient_df.join(condition_df2, on=['id'], how='left_outer').select('name', 'id', 'conditions').show(100, truncate=False)
 
 # COMMAND ----------
 
