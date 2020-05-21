@@ -56,6 +56,6 @@ positive_patients_df.select('id', 'conditions').show(100, truncate=False)
 # COMMAND ----------
 
 # Export to Azure Data Lake 
-spark.conf.set("fs.azure.account.key.yvonnefhirdev.dfs.core.windows.net", "<access_key>")
-dbutils.fs.ls("abfss://<container>@<storage_account>.dfs.core.windows.net/")
-positive_patients_df.write.format("json").save("abfss://<container>@<storage_account>.dfs.core.windows.net/positive_patients.json")
+spark.conf.set("fs.azure.account.key.<storage_account>.dfs.core.windows.net", "<access_key>")
+dbutils.fs.ls("abfss://<container_name>@<storage_account>.dfs.core.windows.net/")
+positive_patients_df.write.format("json").save("abfss://<container_name>@<storage_account>.dfs.core.windows.net/positive_patients.json")
