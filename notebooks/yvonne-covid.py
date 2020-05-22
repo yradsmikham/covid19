@@ -40,18 +40,18 @@ from pyspark.sql.functions import regexp_extract, col, split, collect_list, conc
 condition_df = condition_df.withColumn('subject',condition_df['subject'].cast('string')).withColumn('code',condition_df['code'].cast('string')).withColumn('id', regexp_extract(col('subject'), '\/(.*)\]', 1)).withColumn('conditions', split(col('code'), ',')[1])
 
 # Aggregate data
-cond_grouped_df = condition_df2.groupby('id').agg(collect_list('conditions').alias("conditions"))
+cond_grouped_df = condition_df.groupby('id').agg(collect_list('conditions').alias("conditions"))
 
 # Merge DFs
-patient_cond_df = patient_df.join(grouped_df, on=['id'], how='left_outer').select('name', 'id', 'conditions')
-patient_cond_df.show(100)
+patient_cond_df = patient_df.join(cond_grouped_df, on=['id'], how='left_outer')
+patient_cond_df.select('id', 'name', 'conditions').show(100)
 
 # COMMAND ----------
 
 # Analyze and filter data based on a specific condition 
 
 positive_patients_df = condition_df.filter(condition_df.conditions.contains('Acute bronchitis (disorder)')).groupby('id').agg(collect_list('conditions').alias("conditions"))
-positive_patients_df.select('id', 'conditions').show(100, truncate=False)
+positive_patients_df.select('id', 'conditions').show()
 
 # COMMAND ----------
 
