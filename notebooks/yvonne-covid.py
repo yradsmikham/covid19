@@ -15,18 +15,13 @@ extra_configs = configs)
 
 # COMMAND ----------
 
-# Display dbrix file system 
-display(dbutils.fs.ls("/mnt/"))
-
-# COMMAND ----------
-
 # Explore patient data
 patient_df = spark.read.json("mnt/fhir_patient_data/Patient_01.ndjson")
 display(patient_df)
 
 # COMMAND ----------
 
-# dataset size
+# Dataset size
 print((patient_df.count(), len(patient_df.columns)))
 
 # COMMAND ----------
@@ -74,6 +69,7 @@ df_max = df_sizes.agg(max('address'))
 nb_columns = df_max.collect()[0][0]
 df_result = df.select('id', 'name', 'conditions', *[df['address'][i] for i in range(nb_columns)])
 
+# Rename columns
 final_df = df_result.select(col("id").alias("id"), col("name").alias("name"), col("conditions").alias("conditions"), col('address[1]').alias('country'), col('address[3]').alias('latitude'), col('address[5]').alias('longitude'))
 display(final_df)
 
@@ -96,21 +92,15 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+# Convert spark dataframe to pandas dataframe
 pos_patients_pd_df = positive_patients_df.select("*").toPandas()
 
-# specific to Massachusetts
-m = folium.Map([42.4072, -71.3824], zoom_start=11)
+# Zoom in specific to Massachusetts
+heatmap = folium.Map([42.4072, -71.3824], zoom_start=11)
 
-# convert to (n, 2) nd-array format for heatmap
+# Convert to (n, 2) nd-array format for heatmap
 patientArr = pos_patients_pd_df[['latitude', 'longitude']].as_matrix()
 
-# plot heatmap
-m.add_children(plugins.HeatMap(patientArr, radius=15))
-m
-
-# COMMAND ----------
-
-# Export to Azure Data Lake 
-spark.conf.set("fs.azure.account.key.<storage_account>.dfs.core.windows.net", "<access_key>")
-dbutils.fs.ls("abfss://<container_name>@<storage_account>.dfs.core.windows.net/")
-positive_patients_df.write.format("json").save("abfss://<container_name>@<storage_account>.dfs.core.windows.net/positive_patients.json")
+# Plot heatmap
+heatmap.add_children(plugins.HeatMap(patientArr, radius=15))
+heatmap
